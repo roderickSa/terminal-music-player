@@ -1,0 +1,24 @@
+{
+  "name": "terminal-music-player",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@types/react": "^18.3.28",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "ink": "^4.4.1",
+    "music-metadata": "^11.12.3",
+    "net": "^1.0.2",
+    "react": "^18.3.1"
+  }
+}
