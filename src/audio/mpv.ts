@@ -28,6 +28,7 @@ export class MPVPlayer {
   private pollInterval: NodeJS.Timeout | null = null;
   private playlist: string[] = [];
   private currentIndex = 0;
+  private seekTimeout: NodeJS.Timeout | null = null;
 
   status: MPVStatus = {
     playing: false,
@@ -42,12 +43,21 @@ export class MPVPlayer {
   constructor(onStatusChange: MPVEventCallback) {
     this.onStatusChange = onStatusChange;
     this.socketPath = path.join(os.tmpdir(), `mpv-${process.pid}.sock`);
+
+    const cleanup = () => { this.quitProcess(); };
+    process.on("exit", cleanup);
+    process.on("SIGINT", () => { this.quitProcess(); process.exit(0); });
+    process.on("SIGTERM", () => { this.quitProcess(); process.exit(0); });
+    process.on("uncaughtException", (err) => {
+      console.error(err);
+      this.quitProcess();
+      process.exit(1);
+    });
   }
 
   async load(filePath: string) {
     await this.quit();
 
-    // Construir playlist con todas las canciones de la misma carpeta
     const dir = path.dirname(filePath);
     this.playlist = fs
       .readdirSync(dir)
@@ -82,7 +92,6 @@ export class MPVPlayer {
     ]);
 
     this.process.on("exit", (code) => {
-      // Si terminó naturalmente (no por quit), pasa a la siguiente
       if (code === 0) this.next().catch(() => {});
       else {
         this.status.playing = false;
@@ -106,7 +115,6 @@ export class MPVPlayer {
 
   async prev() {
     if (this.playlist.length === 0) return;
-    // Si llevamos más de 3 segundos, reinicia la canción actual
     if (this.status.position > 3) {
       await this.command(["set_property", "time-pos", 0]);
       return;
@@ -128,6 +136,9 @@ export class MPVPlayer {
 
   private connectSocket() {
     this.socket = net.createConnection(this.socketPath);
+
+    this.socket.on("error", () => {});
+
     this.socket.on("data", (data) => {
       const lines = data.toString().split("\n").filter(Boolean);
       for (const line of lines) {
@@ -144,22 +155,27 @@ export class MPVPlayer {
 
   private command(args: any[]): Promise<any> {
     return new Promise((resolve) => {
-      if (!this.socket) return resolve(null);
+      if (!this.socket || this.socket.destroyed) return resolve(null);
       const id = ++this.requestId;
       this.callbacks.set(id, resolve);
-      const cmd = JSON.stringify({ command: args, request_id: id }) + "\n";
-      this.socket.write(cmd);
+      try {
+        const cmd = JSON.stringify({ command: args, request_id: id }) + "\n";
+        this.socket.write(cmd);
+      } catch {
+        this.callbacks.delete(id);
+        resolve(null);
+      }
     });
   }
 
   private startPolling() {
     this.pollInterval = setInterval(async () => {
+      if (!this.socket || this.socket.destroyed) return;
       const [pos, dur, pause] = await Promise.all([
         this.command(["get_property", "time-pos"]),
         this.command(["get_property", "duration"]),
         this.command(["get_property", "pause"]),
       ]);
-
       this.status.position = pos?.data ?? 0;
       this.status.duration = dur?.data ?? 0;
       this.status.playing = !(pause?.data ?? true);
@@ -172,10 +188,14 @@ export class MPVPlayer {
   }
 
   async seek(seconds: number) {
-    await this.command(["seek", seconds, "relative"]);
+    if (this.seekTimeout) clearTimeout(this.seekTimeout);
+    this.seekTimeout = setTimeout(async () => {
+      await this.command(["seek", seconds, "relative"]);
+    }, 80);
   }
 
   private async quitProcess() {
+    if (this.seekTimeout) { clearTimeout(this.seekTimeout); this.seekTimeout = null; }
     if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
     if (this.socket) { this.socket.destroy(); this.socket = null; }
     if (this.process) { this.process.removeAllListeners(); this.process.kill(); this.process = null; }

@@ -1,13 +1,15 @@
 import { Box, Text, useInput } from "ink";
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import * as fs from "fs";
 import * as path from "path";
 
 type Props = {
   onSelect: (filePath: string) => void;
+  agumon?: ReactNode;
 };
-const DEFAULT_DIR = "/home/roder/Desktop/projects/terminal-music-player/src/music";
+
 const AUDIO_EXTENSIONS = [".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac"];
+const DEFAULT_DIR = "/home/roder/Desktop/projects/terminal-music-player/src/music";
 
 function isAudio(file: string) {
   return AUDIO_EXTENSIONS.includes(path.extname(file).toLowerCase());
@@ -24,7 +26,7 @@ function readDir(dir: string) {
   return [...folders, ...files];
 }
 
-export function FilePicker({ onSelect }: Props) {
+export function FilePicker({ onSelect, agumon }: Props) {
   const [currentDir, setCurrentDir] = useState(() => DEFAULT_DIR);
   const [items, setItems] = useState(() => readDir(DEFAULT_DIR));
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -40,35 +42,26 @@ export function FilePicker({ onSelect }: Props) {
 
   useInput((input, key) => {
     if (input === "q") process.exit(0);
-    if (key.upArrow) {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-    }
-    if (key.downArrow) {
-      setSelectedIndex((i) => Math.min(items.length - 1, i + 1));
-    }
+    if (key.upArrow) setSelectedIndex((i) => Math.max(0, i - 1));
+    if (key.downArrow) setSelectedIndex((i) => Math.min(items.length - 1, i + 1));
     if (key.return) {
       const item = items[selectedIndex];
       if (!item) return;
-      if (item.isDir) {
-        navigate(item.fullPath);
-      } else {
-        onSelect(item.fullPath);
-      }
+      if (item.isDir) navigate(item.fullPath);
+      else onSelect(item.fullPath);
     }
-    if (input === "b") {
-      navigate(path.dirname(currentDir));
-    }
+    if (input === "b") navigate(path.dirname(currentDir));
   });
 
-  // Ventana de 10 items visibles
   const windowSize = 10;
   const start = Math.max(0, selectedIndex - Math.floor(windowSize / 2));
   const visible = items.slice(start, start + windowSize);
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Box marginBottom={1}>
+      <Box marginBottom={1} gap={2} alignItems="center">
         <Text bold color="magenta">♪ Terminal Music Player</Text>
+        {agumon}
       </Box>
 
       <Box marginBottom={1}>
@@ -77,17 +70,14 @@ export function FilePicker({ onSelect }: Props) {
       </Box>
 
       <Box borderStyle="round" borderColor="cyan" flexDirection="column" padding={1}>
-        {items.length === 0 && (
-          <Text color="gray">  No hay archivos de audio aquí</Text>
-        )}
+        {items.length === 0 && <Text color="gray">  No hay archivos de audio aquí</Text>}
         {visible.map((item, i) => {
           const realIndex = start + i;
           const isSelected = realIndex === selectedIndex;
           return (
             <Box key={item.fullPath}>
               <Text color={isSelected ? "cyan" : "white"} bold={isSelected}>
-                {isSelected ? " ❯ " : "   "}
-                {item.name}
+                {isSelected ? " ❯ " : "   "}{item.name}
               </Text>
             </Box>
           );

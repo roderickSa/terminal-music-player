@@ -2,8 +2,8 @@ import { Box, Text, useApp, useInput } from "ink";
 import { useState, useEffect } from "react";
 import { MPVPlayer, MPVStatus } from "../audio/mpv.js";
 import { FilePicker } from "./FilePicker.js";
-import { Spectrum } from "./Spectrum.js";
 import { parseLrc, getCurrentLine, getLrcPath, LrcLine } from "../lyrics/lrc.js";
+import { Agumon, AgumonState } from "./Agumon.js";
 
 type Props = { player: MPVPlayer; filePath?: string };
 
@@ -37,8 +37,7 @@ function LyricsPanel({ lines, position, width }: { lines: LrcLine[]; position: n
   }
 
   const current = getCurrentLine(lines, position);
-  const context = 4; // líneas antes y después
-
+  const context = 2;
   const start = Math.max(0, current - context);
   const end = Math.min(lines.length, current + context + 1);
   const visible = lines.slice(start, end);
@@ -49,14 +48,11 @@ function LyricsPanel({ lines, position, width }: { lines: LrcLine[]; position: n
         const realIndex = start + i;
         const isCurrent = realIndex === current;
         return (
-          <Box key={realIndex} justifyContent="center">
-            <Text
-              bold={isCurrent}
-              color={isCurrent ? "whiteBright" : "white"}
-              dimColor={!isCurrent}
-            >
-              {isCurrent ? `› ${line.text}` : `  ${line.text}`}
+          <Box key={realIndex} flexDirection="column" alignItems="center">
+            <Text bold={isCurrent} color={isCurrent ? "whiteBright" : "white"} dimColor={!isCurrent}>
+              {isCurrent ? `›  ${line.text}` : `   ${line.text}`}
             </Text>
+            <Text> </Text>
           </Box>
         );
       })}
@@ -70,18 +66,21 @@ export function App({ player, filePath }: Props) {
   const [screen, setScreen] = useState<"picker" | "player">(filePath ? "player" : "picker");
   const [lyrics, setLyrics] = useState<LrcLine[]>([]);
   const [termWidth, setTermWidth] = useState(process.stdout.columns || 80);
+  const [excited, setExcited] = useState(false);
 
   useEffect(() => {
     (player as any).onStatusChange = (s: MPVStatus) => {
-      setStatus(s);
-      // cargar letra cuando cambia la canción
-      if (s.path) {
-        setLyrics(parseLrc(getLrcPath(s.path)));
-      }
+      setStatus((prev) => {
+        // detectar cambio de canción → emocionado brevemente
+        if (prev.title !== s.title && s.title) {
+          setExcited(true);
+          setTimeout(() => setExcited(false), 2000);
+        }
+        return s;
+      });
+      if (s.path) setLyrics(parseLrc(getLrcPath(s.path)));
     };
-    if (filePath) {
-      player.load(filePath).catch(console.error);
-    }
+    if (filePath) player.load(filePath).catch(console.error);
 
     const onResize = () => setTermWidth(process.stdout.columns || 80);
     process.stdout.on("resize", onResize);
@@ -90,6 +89,8 @@ export function App({ player, filePath }: Props) {
 
   const handleSelect = (selectedPath: string) => {
     player.load(selectedPath).catch(console.error);
+    setExcited(true);
+    setTimeout(() => setExcited(false), 2000);
     setScreen("player");
   };
 
@@ -99,41 +100,42 @@ export function App({ player, filePath }: Props) {
     if (input === " ") { player.togglePause(); }
     if (input === "l" || key.rightArrow) { player.seek(10); }
     if (input === "h" || key.leftArrow) { player.seek(-10); }
-    if (input === "n") { player.next(); }
+    if (input === "n") {
+      setExcited(true);
+      setTimeout(() => setExcited(false), 2000);
+      player.next();
+    }
     if (input === "p") { player.prev(); }
     if (input === "o") { player.quit(); setScreen("picker"); }
   });
 
   if (screen === "picker") {
-    return <FilePicker onSelect={handleSelect} />;
+    return <FilePicker onSelect={handleSelect} agumon={<Agumon state="walking" />} />;
   }
 
+  const agumonState: AgumonState = excited ? "excited" : status.playing ? "playing" : "paused";
   const w = termWidth - 4;
   const title = status.title.replace(/\.[^/.]+$/, "");
 
   return (
     <Box flexDirection="column" padding={1} gap={1}>
 
-      {/* Header */}
-      <Box justifyContent="space-between" width={w}>
-        <Text bold color="magenta">♪ Terminal Music Player</Text>
-        {status.total > 0 && (
-          <Text color="gray">{status.currentIndex + 1} / {status.total}</Text>
-        )}
+      {/* Header con Agumon a la derecha */}
+      <Box justifyContent="space-between" width={w} alignItems="flex-start">
+        <Box flexDirection="column" gap={1}>
+          <Box gap={2}>
+            <Text bold color="magenta">♪ Terminal Music Player</Text>
+            {status.total > 0 && <Text color="gray">{status.currentIndex + 1} / {status.total}</Text>}
+          </Box>
+          <Text bold color="white">{title}</Text>
+          <Text color={status.playing ? "greenBright" : "yellow"}>
+            {status.playing ? "▶  reproduciendo" : "⏸  pausado"}
+          </Text>
+        </Box>
+
+        <Agumon state={agumonState} />
       </Box>
 
-      {/* Título y estado */}
-      <Box flexDirection="column">
-        <Text bold color="white">{title}</Text>
-        <Text color={status.playing ? "greenBright" : "yellow"}>
-          {status.playing ? "▶  reproduciendo" : "⏸  pausado"}
-        </Text>
-      </Box>
-
-      {/* Espectro */}
-      <Spectrum playing={status.playing} position={status.position} width={w} />
-
-      {/* Barra de progreso */}
       <Box flexDirection="column">
         <ProgressBar pos={status.position} dur={status.duration} width={w} />
         <Box justifyContent="space-between" width={w}>
@@ -142,10 +144,8 @@ export function App({ player, filePath }: Props) {
         </Box>
       </Box>
 
-      {/* Letra */}
       <LyricsPanel lines={lyrics} position={status.position} width={w} />
 
-      {/* Controles */}
       <Box gap={2}>
         <Text><Text color="cyanBright">spc</Text> play/pause</Text>
         <Text><Text color="cyanBright">p/n</Text> ant/sig</Text>
