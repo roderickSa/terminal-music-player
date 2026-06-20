@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.sock
 .env
+.claude
+excalidraw.log

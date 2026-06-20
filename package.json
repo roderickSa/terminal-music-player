@@ -4,7 +4,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx src/index.ts src/music"
+    "dev": "tsx src/index.ts src/music",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -13,11 +15,13 @@
     "@types/node": "^25.5.2",
     "@types/react": "^18.3.28",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^3.2.6"
   },
   "dependencies": {
     "ink": "^4.4.1",
     "music-metadata": "^11.12.3",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "zod": "^4.4.3"
   }
 }

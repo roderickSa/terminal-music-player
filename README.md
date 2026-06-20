@@ -93,9 +93,37 @@ and the `[offset:±ms]` tag.
 
 `.mp3` `.flac` `.ogg` `.wav` `.m4a` `.aac`
 
+## Development
+
+```bash
+npm run dev          # run the app (opens src/music)
+npm run typecheck    # tsc --noEmit
+npm test             # vitest (domain + use-case tests)
+```
+
+## Architecture
+
+Hexagonal — the domain knows nothing about Ink, mpv or the filesystem.
+
+```
+src/
+  domain/          pure logic (Playlist, RepeatMode, PlayerState, Lyrics, Track)
+  ports/           interfaces (audio-player, metadata-reader, lyrics-source, file-system, random)
+  use-cases/       PlaybackCoordinator (orchestration) + BrowseDirectory
+  infrastructure/  adapters: audio/mpv, metadata, lyrics, fs, ui/ (Ink components)
+  bootstrap/       manual DI (container.ts)
+  config/          start-dir resolution
+```
+
+Dependency rule: `infrastructure → use-cases → domain` (never the reverse).
+The UI is just another adapter: it dispatches use cases and subscribes to the
+`PlayerState` the coordinator publishes.
+
 ## Tech stack
 
 - [Ink](https://github.com/vadimdemedes/ink) — React for terminal UIs
 - [mpv](https://mpv.io/) — audio engine via JSON IPC socket
 - [music-metadata](https://github.com/borewit/music-metadata) — ID3 tag reading
+- [zod](https://zod.dev/) — validation at the boundaries (mpv IPC)
+- [vitest](https://vitest.dev/) — tests
 - TypeScript + tsx

@@ -2,9 +2,9 @@ import { render } from "ink";
 import React from "react";
 import { spawnSync } from "child_process";
 import * as fs from "fs";
-import { App } from "./ui/App.js";
-import { MPVPlayer } from "./audio/mpv.js";
-import { resolveStartDir } from "./config.js";
+import { App } from "./infrastructure/ui/App.js";
+import { buildContainer } from "./bootstrap/container.js";
+import { resolveStartDir } from "./config/config.js";
 
 function mpvAvailable(): boolean {
   try {
@@ -27,8 +27,8 @@ if (!mpvAvailable()) {
   process.exit(1);
 }
 
-// Tomamos el último argumento posicional: así `npm run dev` usa el default
-// del script (src/music) y `npm run dev -- /otra/ruta` lo sobrescribe.
+// Último argumento posicional: `npm run dev` usa el default del script
+// (src/music) y `npm run dev -- /otra/ruta` lo sobrescribe.
 const args = process.argv.slice(2);
 const arg = args[args.length - 1];
 const argIsFile = !!arg && fs.existsSync(arg) && fs.statSync(arg).isFile();
@@ -36,11 +36,11 @@ const argIsFile = !!arg && fs.existsSync(arg) && fs.statSync(arg).isFile();
 const filePath = argIsFile ? arg : undefined;
 const startDir = resolveStartDir(arg);
 
-const player = new MPVPlayer((status) => {});
+const { coordinator, browseDirectory } = buildContainer();
 
 const { waitUntilExit } = render(
-  React.createElement(App, { player, filePath, startDir })
+  React.createElement(App, { coordinator, browseDirectory, filePath, startDir }),
 );
 
 await waitUntilExit();
-await player.quit();
+await coordinator.stop();

@@ -1,44 +1,39 @@
 import { Box, Text, useInput } from "ink";
 import { useState, useMemo, ReactNode } from "react";
-import * as fs from "fs";
-import * as path from "path";
-import { isAudioFile } from "../config.js";
+import { BrowseDirectory } from "../../use-cases/browse-directory.js";
+import { DirectoryEntry } from "../../ports/file-system.port.js";
 
 type Props = {
   onSelect: (filePath: string) => void;
+  browseDirectory: BrowseDirectory;
   startDir: string;
   agumon?: ReactNode;
 };
 
-function readDir(dir: string) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const folders = entries
-    .filter((e) => e.isDirectory() && !e.name.startsWith("."))
-    .map((e) => ({ name: "📁 " + e.name, fullPath: path.join(dir, e.name), isDir: true }));
-  const files = entries
-    .filter((e) => e.isFile() && isAudioFile(e.name))
-    .map((e) => ({ name: "♪  " + e.name, fullPath: path.join(dir, e.name), isDir: false }));
-  return [...folders, ...files];
-}
-
 const WINDOW_SIZE = 10;
 
-export function FilePicker({ onSelect, startDir, agumon }: Props) {
+function label(entry: DirectoryEntry): string {
+  return entry.isDirectory ? `📁 ${entry.name}` : `♪  ${entry.name}`;
+}
+
+export function FilePicker({ onSelect, browseDirectory, startDir, agumon }: Props) {
   const [currentDir, setCurrentDir] = useState(() => startDir);
-  const [items, setItems] = useState(() => readDir(startDir));
+  const [items, setItems] = useState<DirectoryEntry[]>(() => browseDirectory.list(startDir));
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filtering, setFiltering] = useState(false);
   const [filter, setFilter] = useState("");
 
   const navigate = (dir: string) => {
     try {
-      const newItems = readDir(dir);
+      const newItems = browseDirectory.list(dir);
       setCurrentDir(dir);
       setItems(newItems);
       setSelectedIndex(0);
       setFiltering(false);
       setFilter("");
-    } catch {}
+    } catch {
+      // directorio inaccesible: nos quedamos donde estamos
+    }
   };
 
   const filtered = useMemo(() => {
@@ -55,8 +50,8 @@ export function FilePicker({ onSelect, startDir, agumon }: Props) {
       if (key.return) {
         const item = filtered[selectedIndex];
         if (!item) return;
-        if (item.isDir) navigate(item.fullPath);
-        else { setFiltering(false); onSelect(item.fullPath); }
+        if (item.isDirectory) navigate(item.path);
+        else { setFiltering(false); onSelect(item.path); }
         return;
       }
       if (key.upArrow) { setSelectedIndex((i) => clamp(i - 1)); return; }
@@ -73,15 +68,15 @@ export function FilePicker({ onSelect, startDir, agumon }: Props) {
     if (key.return) {
       const item = filtered[selectedIndex];
       if (!item) return;
-      if (item.isDir) navigate(item.fullPath);
-      else onSelect(item.fullPath);
+      if (item.isDirectory) navigate(item.path);
+      else onSelect(item.path);
     }
-    if (input === "b") navigate(path.dirname(currentDir));
+    if (input === "b") navigate(browseDirectory.parentOf(currentDir));
   });
 
   const start = Math.max(
     0,
-    Math.min(selectedIndex - Math.floor(WINDOW_SIZE / 2), Math.max(0, filtered.length - WINDOW_SIZE))
+    Math.min(selectedIndex - Math.floor(WINDOW_SIZE / 2), Math.max(0, filtered.length - WINDOW_SIZE)),
   );
   const visible = filtered.slice(start, start + WINDOW_SIZE);
   const above = start;
@@ -117,9 +112,9 @@ export function FilePicker({ onSelect, startDir, agumon }: Props) {
           const realIndex = start + i;
           const isSelected = realIndex === selectedIndex;
           return (
-            <Box key={item.fullPath}>
+            <Box key={item.path}>
               <Text color={isSelected ? "cyan" : "white"} bold={isSelected}>
-                {isSelected ? " ❯ " : "   "}{item.name}
+                {isSelected ? " ❯ " : "   "}{label(item)}
               </Text>
             </Box>
           );
