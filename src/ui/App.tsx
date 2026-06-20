@@ -1,11 +1,11 @@
 import { Box, Text, useApp, useInput } from "ink";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MPVPlayer, MPVStatus } from "../audio/mpv.js";
 import { FilePicker } from "./FilePicker.js";
 import { parseLrc, getCurrentLine, getLrcPath, LrcLine } from "../lyrics/lrc.js";
 import { Agumon, AgumonState } from "./Agumon.js";
 
-type Props = { player: MPVPlayer; filePath?: string };
+type Props = { player: MPVPlayer; filePath?: string; startDir: string };
 
 export function formatTime(s: number) {
   const m = Math.floor(s / 60);
@@ -60,57 +60,72 @@ function LyricsPanel({ lines, position, width }: { lines: LrcLine[]; position: n
   );
 }
 
-export function App({ player, filePath }: Props) {
+export function App({ player, filePath, startDir }: Props) {
   const { exit } = useApp();
   const [status, setStatus] = useState<MPVStatus>(player.status);
   const [screen, setScreen] = useState<"picker" | "player">(filePath ? "player" : "picker");
   const [lyrics, setLyrics] = useState<LrcLine[]>([]);
   const [termWidth, setTermWidth] = useState(process.stdout.columns || 80);
   const [excited, setExcited] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const excitedTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerExcited = () => {
+    setExcited(true);
+    if (excitedTimer.current) clearTimeout(excitedTimer.current);
+    excitedTimer.current = setTimeout(() => setExcited(false), 2000);
+  };
 
   useEffect(() => {
     (player as any).onStatusChange = (s: MPVStatus) => {
       setStatus((prev) => {
         // detectar cambio de canción → emocionado brevemente
         if (prev.title !== s.title && s.title) {
-          setExcited(true);
-          setTimeout(() => setExcited(false), 2000);
+          triggerExcited();
         }
         return s;
       });
       if (s.path) setLyrics(parseLrc(getLrcPath(s.path)));
     };
-    if (filePath) player.load(filePath).catch(console.error);
+    if (filePath) load(filePath);
 
     const onResize = () => setTermWidth(process.stdout.columns || 80);
     process.stdout.on("resize", onResize);
-    return () => { process.stdout.off("resize", onResize); };
+    return () => {
+      process.stdout.off("resize", onResize);
+      if (excitedTimer.current) clearTimeout(excitedTimer.current);
+    };
   }, []);
 
+  const load = (target: string) => {
+    setError(null);
+    player.load(target).catch((e) => setError(e?.message ?? String(e)));
+  };
+
   const handleSelect = (selectedPath: string) => {
-    player.load(selectedPath).catch(console.error);
-    setExcited(true);
-    setTimeout(() => setExcited(false), 2000);
+    load(selectedPath);
+    triggerExcited();
     setScreen("player");
   };
 
   useInput((input, key) => {
     if (screen !== "player") return;
-    if (input === "q") { player.quit().then(exit); }
+    if (input === "q") { player.quit().then(() => exit()); }
     if (input === " ") { player.togglePause(); }
     if (input === "l" || key.rightArrow) { player.seek(10); }
     if (input === "h" || key.leftArrow) { player.seek(-10); }
-    if (input === "n") {
-      setExcited(true);
-      setTimeout(() => setExcited(false), 2000);
-      player.next();
-    }
-    if (input === "p") { player.prev(); }
+    if (input === "n") { triggerExcited(); player.next(); }
+    if (input === "p") { triggerExcited(); player.prev(); }
+    if (input === "+" || input === "=") { player.setVolume(5); }
+    if (input === "-" || input === "_") { player.setVolume(-5); }
+    if (input === "m") { player.toggleMute(); }
+    if (input === "s") { player.toggleShuffle(); }
+    if (input === "r") { player.cycleRepeat(); }
     if (input === "o") { player.quit(); setScreen("picker"); }
   });
 
   if (screen === "picker") {
-    return <FilePicker onSelect={handleSelect} agumon={<Agumon state="walking" />} />;
+    return <FilePicker onSelect={handleSelect} startDir={startDir} agumon={<Agumon state="walking" />} />;
   }
 
   const agumonState: AgumonState = excited ? "excited" : status.playing ? "playing" : "paused";
@@ -127,14 +142,34 @@ export function App({ player, filePath }: Props) {
             <Text bold color="magenta">♪ Terminal Music Player</Text>
             {status.total > 0 && <Text color="gray">{status.currentIndex + 1} / {status.total}</Text>}
           </Box>
-          <Text bold color="white">{title}</Text>
-          <Text color={status.playing ? "greenBright" : "yellow"}>
-            {status.playing ? "▶  reproduciendo" : "⏸  pausado"}
-          </Text>
+          <Box flexDirection="column">
+            <Text bold color="white">
+              {status.artist ? `${status.artist} — ` : ""}{title}
+            </Text>
+            {status.album && <Text color="gray" dimColor>{status.album}</Text>}
+          </Box>
+          <Box gap={2}>
+            <Text color={status.playing ? "greenBright" : "yellow"}>
+              {status.playing ? "▶  reproduciendo" : "⏸  pausado"}
+            </Text>
+            <Text color={status.muted ? "red" : "gray"}>
+              {status.muted ? "🔇 mute" : `🔊 ${status.volume}%`}
+            </Text>
+            {status.shuffle && <Text color="cyanBright">🔀</Text>}
+            {status.repeat !== "off" && (
+              <Text color="cyanBright">{status.repeat === "one" ? "🔂" : "🔁"}</Text>
+            )}
+          </Box>
         </Box>
 
         <Agumon state={agumonState} />
       </Box>
+
+      {error && (
+        <Box borderStyle="round" borderColor="redBright" width={w} padding={1}>
+          <Text color="redBright">✖ {error}</Text>
+        </Box>
+      )}
 
       <Box flexDirection="column">
         <ProgressBar pos={status.position} dur={status.duration} width={w} />
@@ -146,10 +181,14 @@ export function App({ player, filePath }: Props) {
 
       <LyricsPanel lines={lyrics} position={status.position} width={w} />
 
-      <Box gap={2}>
+      <Box gap={2} flexWrap="wrap">
         <Text><Text color="cyanBright">spc</Text> play/pause</Text>
         <Text><Text color="cyanBright">p/n</Text> ant/sig</Text>
         <Text><Text color="cyanBright">h/l</Text> -/+10s</Text>
+        <Text><Text color="cyanBright">-/+</Text> vol</Text>
+        <Text><Text color="cyanBright">m</Text> mute</Text>
+        <Text><Text color="cyanBright">s</Text> shuffle</Text>
+        <Text><Text color="cyanBright">r</Text> repeat</Text>
         <Text><Text color="cyanBright">o</Text> abrir</Text>
         <Text><Text color="cyanBright">q</Text> salir</Text>
       </Box>

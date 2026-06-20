@@ -3,20 +3,28 @@ import * as net from "net";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { parseFile } from "music-metadata";
+import { AUDIO_EXTENSIONS } from "../config.js";
+
+export type RepeatMode = "off" | "all" | "one";
 
 export type MPVStatus = {
   playing: boolean;
   position: number;
   duration: number;
   title: string;
+  artist: string;
+  album: string;
   path: string;
   currentIndex: number;
   total: number;
+  volume: number;
+  muted: boolean;
+  shuffle: boolean;
+  repeat: RepeatMode;
 };
 
 type MPVEventCallback = (status: MPVStatus) => void;
-
-const AUDIO_EXTENSIONS = [".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac"];
 
 export class MPVPlayer {
   private process: ChildProcess | null = null;
@@ -29,15 +37,23 @@ export class MPVPlayer {
   private playlist: string[] = [];
   private currentIndex = 0;
   private seekTimeout: NodeJS.Timeout | null = null;
+  private pendingSeek = 0;
+  private history: number[] = [];
 
   status: MPVStatus = {
     playing: false,
     position: 0,
     duration: 0,
     title: "",
+    artist: "",
+    album: "",
     path: "",
     currentIndex: 0,
     total: 0,
+    volume: 100,
+    muted: false,
+    shuffle: false,
+    repeat: "off",
   };
 
   constructor(onStatusChange: MPVEventCallback) {
@@ -78,7 +94,9 @@ export class MPVPlayer {
     this.currentIndex = index;
 
     this.status.path = filePath;
-    this.status.title = path.basename(filePath);
+    this.status.title = path.basename(filePath).replace(/\.[^/.]+$/, "");
+    this.status.artist = "";
+    this.status.album = "";
     this.status.currentIndex = index;
     this.status.total = this.playlist.length;
     this.status.position = 0;
@@ -87,12 +105,14 @@ export class MPVPlayer {
     this.process = spawn("mpv", [
       "--no-video",
       "--no-terminal",
+      `--volume=${this.status.volume}`,
+      `--mute=${this.status.muted ? "yes" : "no"}`,
       `--input-ipc-server=${this.socketPath}`,
       filePath,
     ]);
 
     this.process.on("exit", (code) => {
-      if (code === 0) this.next().catch(() => {});
+      if (code === 0) this.handleTrackEnd().catch(() => {});
       else {
         this.status.playing = false;
         this.onStatusChange({ ...this.status });
@@ -105,11 +125,62 @@ export class MPVPlayer {
 
     this.status.playing = true;
     this.onStatusChange({ ...this.status });
+
+    this.loadMetadata(filePath);
+  }
+
+  /** Lee tags ID3 en segundo plano y refresca el estado si sigue siendo la pista actual. */
+  private async loadMetadata(filePath: string) {
+    try {
+      const { common } = await parseFile(filePath);
+      if (this.status.path !== filePath) return; // cambió de canción mientras leíamos
+      if (common.title) this.status.title = common.title;
+      this.status.artist = common.artist ?? "";
+      this.status.album = common.album ?? "";
+      this.onStatusChange({ ...this.status });
+    } catch {
+      // sin tags legibles: nos quedamos con el nombre de archivo
+    }
+  }
+
+  private pickRandomIndex(): number {
+    if (this.playlist.length <= 1) return this.currentIndex;
+    let idx = this.currentIndex;
+    while (idx === this.currentIndex) {
+      idx = Math.floor(Math.random() * this.playlist.length);
+    }
+    return idx;
+  }
+
+  /** Avance automático al terminar una pista (respeta repeat/shuffle). */
+  private async handleTrackEnd() {
+    if (this.playlist.length === 0) return;
+
+    if (this.status.repeat === "one") {
+      await this.loadIndex(this.currentIndex);
+      return;
+    }
+
+    const atLast = this.currentIndex === this.playlist.length - 1;
+    if (!this.status.shuffle && atLast && this.status.repeat === "off") {
+      this.status.playing = false;
+      this.onStatusChange({ ...this.status });
+      return;
+    }
+
+    this.history.push(this.currentIndex);
+    const nextIndex = this.status.shuffle
+      ? this.pickRandomIndex()
+      : (this.currentIndex + 1) % this.playlist.length;
+    await this.loadIndex(nextIndex);
   }
 
   async next() {
     if (this.playlist.length === 0) return;
-    const nextIndex = (this.currentIndex + 1) % this.playlist.length;
+    this.history.push(this.currentIndex);
+    const nextIndex = this.status.shuffle
+      ? this.pickRandomIndex()
+      : (this.currentIndex + 1) % this.playlist.length;
     await this.loadIndex(nextIndex);
   }
 
@@ -119,8 +190,26 @@ export class MPVPlayer {
       await this.command(["set_property", "time-pos", 0]);
       return;
     }
-    const prevIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
+    let prevIndex: number;
+    if (this.status.shuffle && this.history.length > 0) {
+      prevIndex = this.history.pop()!;
+    } else {
+      prevIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
+    }
     await this.loadIndex(prevIndex);
+  }
+
+  toggleShuffle() {
+    this.status.shuffle = !this.status.shuffle;
+    this.history = [];
+    this.onStatusChange({ ...this.status });
+  }
+
+  cycleRepeat() {
+    const order: RepeatMode[] = ["off", "all", "one"];
+    const next = order[(order.indexOf(this.status.repeat) + 1) % order.length];
+    this.status.repeat = next;
+    this.onStatusChange({ ...this.status });
   }
 
   private waitForSocket(retries = 20): Promise<void> {
@@ -171,27 +260,56 @@ export class MPVPlayer {
   private startPolling() {
     this.pollInterval = setInterval(async () => {
       if (!this.socket || this.socket.destroyed) return;
-      const [pos, dur, pause] = await Promise.all([
+      const [pos, dur, pause, vol, mute] = await Promise.all([
         this.command(["get_property", "time-pos"]),
         this.command(["get_property", "duration"]),
         this.command(["get_property", "pause"]),
+        this.command(["get_property", "volume"]),
+        this.command(["get_property", "mute"]),
       ]);
       this.status.position = pos?.data ?? 0;
       this.status.duration = dur?.data ?? 0;
       this.status.playing = !(pause?.data ?? true);
+      if (vol?.data != null) this.status.volume = Math.round(vol.data);
+      if (mute?.data != null) this.status.muted = mute.data;
       this.onStatusChange({ ...this.status });
-    }, 500);
+    }, 250);
   }
 
   async togglePause() {
+    // update optimista: la UI reacciona al instante, sin esperar al poll
+    this.status.playing = !this.status.playing;
+    this.onStatusChange({ ...this.status });
     await this.command(["cycle", "pause"]);
   }
 
   async seek(seconds: number) {
+    // acumula pulsaciones rápidas en un solo salto y refleja la posición al instante
+    this.pendingSeek += seconds;
+    const target = this.status.position + seconds;
+    this.status.position = Math.max(0, Math.min(target, this.status.duration || target));
+    this.onStatusChange({ ...this.status });
+
     if (this.seekTimeout) clearTimeout(this.seekTimeout);
     this.seekTimeout = setTimeout(async () => {
-      await this.command(["seek", seconds, "relative"]);
+      const delta = this.pendingSeek;
+      this.pendingSeek = 0;
+      await this.command(["seek", delta, "relative"]);
     }, 80);
+  }
+
+  async setVolume(delta: number) {
+    const next = Math.max(0, Math.min(130, this.status.volume + delta));
+    this.status.volume = next;
+    if (next > 0) this.status.muted = false;
+    this.onStatusChange({ ...this.status });
+    await this.command(["set_property", "volume", next]);
+  }
+
+  async toggleMute() {
+    this.status.muted = !this.status.muted;
+    this.onStatusChange({ ...this.status });
+    await this.command(["set_property", "mute", this.status.muted]);
   }
 
   private async quitProcess() {

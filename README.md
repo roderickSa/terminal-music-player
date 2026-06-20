@@ -5,11 +5,14 @@ A music player that runs in your terminal, built with Node.js, TypeScript, and I
 ## Features
 
 - 🎧 Audio playback via `mpv`
-- 📁 File browser to navigate and pick songs
+- 📁 File browser with incremental search (`/`)
+- 🏷️ Reads ID3 tags (artist · title · album)
 - 🎼 Synchronized lyrics from `.lrc` files
-- 📊 Spectrum visualizer
+- 🔊 Volume control & mute
+- 🔀 Shuffle and 🔁 repeat (off / all / one)
+- 🦖 Animated ASCII buddy that reacts to playback
 - ⌨️ Keyboard controls
-- 🔀 Auto-advance to next track
+- ⏭️ Auto-advance to next track
 
 ## Requirements
 
@@ -40,9 +43,21 @@ npm run dev
 
 # Play a specific file directly
 npm run dev -- "/path/to/song.mp3"
+
+# Open the browser in a specific folder
+npm run dev -- "/path/to/music/folder"
+```
+
+The file browser's starting directory is resolved in this order:
+the CLI argument → the `MUSIC_DIR` env var → `~/Music` → the current directory.
+
+```bash
+MUSIC_DIR="$HOME/Tunes" npm run dev
 ```
 
 ## Controls
+
+### Player
 
 | Key | Action |
 |-----|--------|
@@ -51,12 +66,28 @@ npm run dev -- "/path/to/song.mp3"
 | `p` | Previous track (or restart if >3s played) |
 | `l` / `→` | Seek +10s |
 | `h` / `←` | Seek -10s |
+| `-` / `+` | Volume down / up |
+| `m` | Mute |
+| `s` | Toggle shuffle |
+| `r` | Cycle repeat (off → all → one) |
 | `o` | Open file browser |
+| `q` | Quit |
+
+### File browser
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate |
+| `enter` | Open folder / play file |
+| `/` | Incremental search (`esc` to clear) |
+| `b` | Go up one folder |
 | `q` | Quit |
 
 ## Lyrics
 
-Place a `.lrc` file with the same name as your audio file in the same folder:
+Place a `.lrc` file with the same name as your audio file in the same folder.
+Supports `[mm:ss]` and `[mm:ss.xx]` timestamps, multiple timestamps per line,
+and the `[offset:±ms]` tag.
 
 ## Supported formats
 

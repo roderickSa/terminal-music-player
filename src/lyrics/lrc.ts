@@ -12,13 +12,27 @@ export function parseLrc(filePath: string): LrcLine[] {
   const content = fs.readFileSync(filePath, "utf-8");
   const lines: LrcLine[] = [];
 
+  // [offset:±ms] — desplaza toda la letra (+ = aparece antes)
+  let offset = 0;
+  const offsetMatch = content.match(/\[offset:\s*([+-]?\d+)\]/i);
+  if (offsetMatch) offset = parseInt(offsetMatch[1], 10) / 1000;
+
+  // acepta [mm:ss] y [mm:ss.xx(x)]; puede haber varios por línea
+  const timeTag = /\[(\d+):(\d+(?:\.\d+)?)\]/g;
+
   for (const line of content.split("\n")) {
-    const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
-    if (!match) continue;
-    const minutes = parseInt(match[1]);
-    const seconds = parseFloat(match[2]);
-    const text = match[3].trim();
-    if (text) lines.push({ time: minutes * 60 + seconds, text });
+    const stamps: number[] = [];
+    let m: RegExpExecArray | null;
+    timeTag.lastIndex = 0;
+    while ((m = timeTag.exec(line)) !== null) {
+      stamps.push(parseInt(m[1], 10) * 60 + parseFloat(m[2]));
+    }
+    if (stamps.length === 0) continue;
+
+    const text = line.replace(timeTag, "").trim();
+    if (!text) continue;
+
+    for (const t of stamps) lines.push({ time: t - offset, text });
   }
 
   return lines.sort((a, b) => a.time - b.time);
