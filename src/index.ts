@@ -36,10 +36,10 @@ const argIsFile = !!arg && fs.existsSync(arg) && fs.statSync(arg).isFile();
 const filePath = argIsFile ? arg : undefined;
 const startDir = resolveStartDir(arg);
 
-const { coordinator, browseDirectory } = buildContainer();
+const { coordinator, browseDirectory, spectrum, albumArt } = buildContainer();
 
 const { waitUntilExit } = render(
-  React.createElement(App, { coordinator, browseDirectory, filePath, startDir }),
+  React.createElement(App, { coordinator, browseDirectory, spectrum, albumArt, filePath, startDir }),
 );
 
 await waitUntilExit();

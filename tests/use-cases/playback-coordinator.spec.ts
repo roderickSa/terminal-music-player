@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { PlaybackCoordinator } from "./playback-coordinator.js";
+import { PlaybackCoordinator } from "../../src/use-cases/playback-coordinator.js";
 import {
   FakeAudioPlayer,
   FakeMetadataReader,
@@ -7,10 +7,10 @@ import {
   FakeFileSystem,
   ScriptedRandom,
 } from "./test-doubles/fakes.js";
-import { TrackMetadata } from "../ports/metadata-reader.port.js";
-import { PlaybackSnapshot } from "../ports/audio-player.port.js";
-import { Lyrics } from "../domain/lyrics/lyrics.js";
-import { LyricLine } from "../domain/lyrics/lyric-line.js";
+import { TrackMetadata } from "../../src/ports/metadata-reader.port.js";
+import { PlaybackSnapshot } from "../../src/ports/audio-player.port.js";
+import { Lyrics } from "../../src/domain/lyrics/lyrics.js";
+import { LyricLine } from "../../src/domain/lyrics/lyric-line.js";
 
 const FILES = ["/m/a.mp3", "/m/b.mp3", "/m/c.mp3"];
 const tick = () => new Promise((r) => setTimeout(r, 0));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseLrc } from "./lrc-parser.js";
+import { parseLrc } from "../../../src/domain/lyrics/lrc-parser.js";
 
 describe("parseLrc", () => {
   it("parsea timestamps con decimales", () => {

@@ -1,13 +1,16 @@
 import { Box, Text, useInput } from "ink";
+import Gradient from "ink-gradient";
+import figures from "figures";
 import { useState, useMemo, ReactNode } from "react";
 import { BrowseDirectory } from "../../use-cases/browse-directory.js";
 import { DirectoryEntry } from "../../ports/file-system.port.js";
+import { CREAM } from "./theme.js";
 
 type Props = {
   onSelect: (filePath: string) => void;
   browseDirectory: BrowseDirectory;
   startDir: string;
-  agumon?: ReactNode;
+  mascot?: ReactNode;
 };
 
 const WINDOW_SIZE = 10;
@@ -16,7 +19,7 @@ function label(entry: DirectoryEntry): string {
   return entry.isDirectory ? `📁 ${entry.name}` : `♪  ${entry.name}`;
 }
 
-export function FilePicker({ onSelect, browseDirectory, startDir, agumon }: Props) {
+export function FilePicker({ onSelect, browseDirectory, startDir, mascot }: Props) {
   const [currentDir, setCurrentDir] = useState(() => startDir);
   const [items, setItems] = useState<DirectoryEntry[]>(() => browseDirectory.list(startDir));
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -85,8 +88,10 @@ export function FilePicker({ onSelect, browseDirectory, startDir, agumon }: Prop
   return (
     <Box flexDirection="column" padding={1}>
       <Box marginBottom={1} gap={2} alignItems="center">
-        <Text bold color="magenta">♪ Terminal Music Player</Text>
-        {agumon}
+        <Gradient colors={CREAM}>
+          <Text bold>{figures.musicNote ?? "♪"} Terminal Music Player</Text>
+        </Gradient>
+        {mascot}
       </Box>
 
       <Box marginBottom={1}>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RepeatMode } from "./repeat-mode.js";
+import { RepeatMode } from "../../../src/domain/playback/repeat-mode.js";
 
 describe("RepeatMode", () => {
   it("cicla off → all → one → off", () => {

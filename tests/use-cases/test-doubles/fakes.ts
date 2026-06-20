@@ -1,9 +1,9 @@
-import { AudioPlayer, PlaybackSnapshot } from "../../ports/audio-player.port.js";
-import { MetadataReader, TrackMetadata } from "../../ports/metadata-reader.port.js";
-import { LyricsSource } from "../../ports/lyrics-source.port.js";
-import { DirectoryEntry, FileSystem } from "../../ports/file-system.port.js";
-import { Random } from "../../ports/random.port.js";
-import { Lyrics } from "../../domain/lyrics/lyrics.js";
+import { AudioPlayer, PlaybackSnapshot } from "../../../src/ports/audio-player.port.js";
+import { MetadataReader, TrackMetadata } from "../../../src/ports/metadata-reader.port.js";
+import { LyricsSource } from "../../../src/ports/lyrics-source.port.js";
+import { DirectoryEntry, FileSystem } from "../../../src/ports/file-system.port.js";
+import { Random } from "../../../src/ports/random.port.js";
+import { Lyrics } from "../../../src/domain/lyrics/lyrics.js";
 
 export class FakeAudioPlayer implements AudioPlayer {
   played: string[] = [];

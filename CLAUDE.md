@@ -11,7 +11,8 @@ npm run typecheck    # tsc --noEmit
 npm test             # vitest (solo dominio + use cases)
 ```
 
-> Node 18 en esta laptop → vitest fijado en v3 (la v4 necesita Node 20.12+).
+> Proyecto fijado a **Node 22** (Ink 7 / React 19) vía `.nvmrc` → `nvm use`.
+> vitest en v3 (funciona en 22; se puede subir a v4 si se quiere).
 
 ## Arquitectura (hexagonal)
 
@@ -29,7 +30,9 @@ El dominio no importa nada de infraestructura.
 - `use-cases/` — `PlaybackCoordinator` (orquesta Playlist + puertos, publica
   `PlayerState`) y `BrowseDirectory`. Sus métodos públicos SON los casos de uso.
 - `infrastructure/` — adapters: `audio/mpv-audio-player` (proceso + socket IPC,
-  SOLO transporte), `metadata`, `lyrics`, `fs`, `random`, y `ui/` (Ink).
+  SOLO transporte), `metadata` (tags + carátula), `lyrics`, `fs`, `random`,
+  `spectrum` (`cava` real o simulado), y `ui/` (Ink: App, FilePicker, Mascot,
+  Visualizer, CoverArt, theme).
 - `bootstrap/container.ts` — DI manual (adapters → coordinator → use cases).
 - `config/` — `resolveStartDir`, `AUDIO_EXTENSIONS`.
 
@@ -48,5 +51,5 @@ Ver la skill `codigo-hexagonal` (en `.claude/skills/`). En resumen:
 
 - El adapter de mpv lanza un proceso por pista y consulta estado por polling
   (250 ms). Mejora futura registrada: mpv persistente + `observe_property`.
-- `infrastructure/ui/Agumon.tsx` es una mascota ASCII; pendiente reemplazarla
-  por una original (la actual remite a IP de Digimon) en el rediseño de UI.
+- La mascota es `infrastructure/ui/Mascot.tsx` ("Lumi"), original y a color.
+- Acentos/títulos usan la paleta `infrastructure/ui/theme.ts` (`CREAM`).

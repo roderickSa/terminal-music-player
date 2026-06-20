@@ -5,28 +5,30 @@ A music player that runs in your terminal, built with Node.js, TypeScript, and I
 ## Features
 
 - 🎧 Audio playback via `mpv`
+- 🎨 Gradient banner, album art and an animated mascot
+- 📊 Audio spectrum visualizer (real via `cava`, simulated otherwise)
 - 📁 File browser with incremental search (`/`)
-- 🏷️ Reads ID3 tags (artist · title · album)
+- 🏷️ Reads ID3 tags (artist · title · album · cover)
 - 🎼 Synchronized lyrics from `.lrc` files
 - 🔊 Volume control & mute
 - 🔀 Shuffle and 🔁 repeat (off / all / one)
-- 🦖 Animated ASCII buddy that reacts to playback
 - ⌨️ Keyboard controls
 - ⏭️ Auto-advance to next track
 
 ## Requirements
 
-- Node.js 18+
+- **Node.js 22+** (Ink 7 / React 19). An `.nvmrc` is included — run `nvm use`.
 - `mpv` installed on your system
+- `cava` *(optional)* — enables the real audio spectrum visualizer
 ```bash
 # Ubuntu/Debian
-sudo apt install mpv
+sudo apt install mpv cava
 
 # Arch
-sudo pacman -S mpv
+sudo pacman -S mpv cava
 
 # Fedora
-sudo dnf install mpv
+sudo dnf install mpv cava
 ```
 
 ## Installation
@@ -121,9 +123,11 @@ The UI is just another adapter: it dispatches use cases and subscribes to the
 
 ## Tech stack
 
-- [Ink](https://github.com/vadimdemedes/ink) — React for terminal UIs
-- [mpv](https://mpv.io/) — audio engine via JSON IPC socket
-- [music-metadata](https://github.com/borewit/music-metadata) — ID3 tag reading
+- [Ink 7](https://github.com/vadimdemedes/ink) — React for terminal UIs
+- [@inkjs/ui](https://github.com/vadimdemedes/ink-ui) · [ink-gradient](https://github.com/sindresorhus/ink-gradient) · [ink-big-text](https://github.com/sindresorhus/ink-big-text) · [figures](https://github.com/sindresorhus/figures) — UI
+- [terminal-image](https://github.com/sindresorhus/terminal-image) — album art in the terminal
+- [mpv](https://mpv.io/) — audio engine via JSON IPC socket · [cava](https://github.com/karlstav/cava) — spectrum (optional)
+- [music-metadata](https://github.com/borewit/music-metadata) — ID3 tags & cover
 - [zod](https://zod.dev/) — validation at the boundaries (mpv IPC)
 - [vitest](https://vitest.dev/) — tests
 - TypeScript + tsx

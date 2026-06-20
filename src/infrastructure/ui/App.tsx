@@ -1,15 +1,26 @@
 import { Box, Text, useApp, useInput } from "ink";
 import { useState, useEffect, useRef } from "react";
+import Gradient from "ink-gradient";
+import BigText from "ink-big-text";
+import { ProgressBar } from "@inkjs/ui";
+import figures from "figures";
 import { PlaybackCoordinator } from "../../use-cases/playback-coordinator.js";
 import { BrowseDirectory } from "../../use-cases/browse-directory.js";
 import { PlayerState } from "../../domain/playback/player-state.js";
 import { Lyrics } from "../../domain/lyrics/lyrics.js";
+import { Spectrum } from "../../ports/spectrum.port.js";
+import { AlbumArtReader } from "../../ports/album-art.port.js";
 import { FilePicker } from "./FilePicker.js";
-import { Agumon, AgumonState } from "./Agumon.js";
+import { Mascot, MascotState } from "./Mascot.js";
+import { Visualizer } from "./Visualizer.js";
+import { CoverArt } from "./CoverArt.js";
+import { CREAM } from "./theme.js";
 
 type Props = {
   coordinator: PlaybackCoordinator;
   browseDirectory: BrowseDirectory;
+  spectrum: Spectrum;
+  albumArt: AlbumArtReader;
   filePath?: string;
   startDir: string;
 };
@@ -18,20 +29,6 @@ export function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function ProgressBar({ pos, dur, width }: { pos: number; dur: number; width: number }) {
-  if (!dur) return <Text color="gray">{"─".repeat(width)}</Text>;
-  const filled = Math.floor((pos / dur) * width);
-  const empty = Math.max(0, width - filled);
-  const percent = pos / dur;
-  const color = percent < 0.5 ? "cyan" : percent < 0.8 ? "magenta" : "redBright";
-  return (
-    <Box>
-      <Text color={color}>{"█".repeat(filled)}</Text>
-      <Text color="gray" dimColor>{"─".repeat(empty)}</Text>
-    </Box>
-  );
 }
 
 function LyricsPanel({ lyrics, position, width }: { lyrics: Lyrics; position: number; width: number }) {
@@ -55,11 +52,10 @@ function LyricsPanel({ lyrics, position, width }: { lyrics: Lyrics; position: nu
         const realIndex = start + i;
         const isCurrent = realIndex === current;
         return (
-          <Box key={realIndex} flexDirection="column" alignItems="center">
-            <Text bold={isCurrent} color={isCurrent ? "whiteBright" : "white"} dimColor={!isCurrent}>
-              {isCurrent ? `›  ${line.text}` : `   ${line.text}`}
+          <Box key={realIndex} justifyContent="center">
+            <Text bold={isCurrent} color={isCurrent ? "magentaBright" : "white"} dimColor={!isCurrent}>
+              {isCurrent ? `${figures.pointer}  ${line.text}` : `   ${line.text}`}
             </Text>
-            <Text> </Text>
           </Box>
         );
       })}
@@ -67,7 +63,16 @@ function LyricsPanel({ lyrics, position, width }: { lyrics: Lyrics; position: nu
   );
 }
 
-export function App({ coordinator, browseDirectory, filePath, startDir }: Props) {
+function Hint({ keys, label }: { keys: string; label: string }) {
+  return (
+    <Text>
+      <Text color="cyanBright" bold>{keys}</Text>
+      <Text color="gray"> {label}</Text>
+    </Text>
+  );
+}
+
+export function App({ coordinator, browseDirectory, spectrum, albumArt, filePath, startDir }: Props) {
   const { exit } = useApp();
   const [state, setState] = useState<PlayerState>(() => coordinator.currentState());
   const [screen, setScreen] = useState<"picker" | "player">(filePath ? "player" : "picker");
@@ -129,66 +134,95 @@ export function App({ coordinator, browseDirectory, filePath, startDir }: Props)
         onSelect={handleSelect}
         browseDirectory={browseDirectory}
         startDir={startDir}
-        agumon={<Agumon state="walking" />}
+        mascot={<Mascot state="walking" />}
       />
     );
   }
 
-  const agumonState: AgumonState = excited ? "excited" : state.playing ? "playing" : "paused";
-  const w = termWidth - 4;
+  const mascotState: MascotState = excited ? "excited" : state.playing ? "playing" : "paused";
+  const w = Math.min(termWidth - 4, 96);
   const { track } = state;
+  const percent = state.duration ? (state.position / state.duration) * 100 : 0;
+  const volumePercent = state.muted ? 0 : Math.round((state.volume / 130) * 100);
 
   return (
-    <Box flexDirection="column" padding={1} gap={1}>
-      <Box justifyContent="space-between" width={w} alignItems="flex-start">
-        <Box flexDirection="column" gap={1}>
-          <Box gap={2}>
-            <Text bold color="magenta">♪ Terminal Music Player</Text>
-            {state.total > 0 && <Text color="gray">{state.currentIndex + 1} / {state.total}</Text>}
-          </Box>
-          <Box flexDirection="column">
-            <Text bold color="white">
-              {track.hasArtist() ? `${track.artist} — ` : ""}{track.title}
+    <Box flexDirection="column" paddingX={1} paddingY={0}>
+      {/* Header: banner con gradiente + mascota */}
+      <Box justifyContent="space-between" width={w} alignItems="center">
+        <Gradient colors={CREAM}>
+          <BigText text="TUNES" font="tiny" />
+        </Gradient>
+        <Mascot state={mascotState} />
+      </Box>
+
+      {/* Carátula + Now playing */}
+      <Box gap={1} width={w}>
+        <CoverArt reader={albumArt} trackPath={track.path} size={10} />
+        <Box
+          borderStyle="round"
+          borderColor="magenta"
+          flexDirection="column"
+          flexGrow={1}
+          paddingX={1}
+        >
+          <Box justifyContent="space-between">
+            <Text bold color="whiteBright">
+              {track.hasArtist() ? `${track.artist} — ` : ""}{track.title || "—"}
             </Text>
-            {track.hasAlbum() && <Text color="gray" dimColor>{track.album}</Text>}
+            {state.total > 0 && <Text color="gray" dimColor>{state.currentIndex + 1}/{state.total}</Text>}
           </Box>
-          <Box gap={2}>
+          {track.hasAlbum() && <Text color="gray" dimColor>{track.album}</Text>}
+          <Box gap={2} marginTop={1}>
             <Text color={state.playing ? "greenBright" : "yellow"}>
-              {state.playing ? "▶  reproduciendo" : "⏸  pausado"}
+              {state.playing ? `${figures.play} reproduciendo` : "⏸ pausado"}
             </Text>
-            <Text color={state.muted ? "red" : "gray"}>
-              {state.muted ? "🔇 mute" : `🔊 ${state.volume}%`}
-            </Text>
-            {state.shuffle && <Text color="cyanBright">🔀</Text>}
+            {state.shuffle && <Text color="cyanBright">🔀 shuffle</Text>}
             {!state.repeat.isOff() && (
-              <Text color="cyanBright">{state.repeat.isOne() ? "🔂" : "🔁"}</Text>
+              <Text color="cyanBright">{state.repeat.isOne() ? "🔂 one" : "🔁 all"}</Text>
             )}
           </Box>
         </Box>
-
-        <Agumon state={agumonState} />
       </Box>
 
-      <Box flexDirection="column">
-        <ProgressBar pos={state.position} dur={state.duration} width={w} />
+      {/* Barra de progreso */}
+      <Box flexDirection="column" width={w} marginTop={0}>
+        <Box width={w}>
+          <ProgressBar value={percent} />
+        </Box>
         <Box justifyContent="space-between" width={w}>
-          <Text color="gray" dimColor>{formatTime(state.position)}</Text>
+          <Text color="cyan">{formatTime(state.position)}</Text>
           <Text color="gray" dimColor>{formatTime(state.duration)}</Text>
         </Box>
       </Box>
 
+      {/* Volumen */}
+      <Box gap={1} width={w} alignItems="center">
+        <Text>{state.muted ? "🔇" : "🔊"}</Text>
+        <Box width={16}>
+          <ProgressBar value={volumePercent} />
+        </Box>
+        <Text color="gray" dimColor>{state.muted ? "mute" : `${state.volume}%`}</Text>
+      </Box>
+
+      {/* Visualizador de espectro */}
+      <Box width={w}>
+        <Visualizer spectrum={spectrum} active={state.playing} width={w} />
+      </Box>
+
+      {/* Letras */}
       <LyricsPanel lyrics={state.lyrics} position={state.position} width={w} />
 
-      <Box gap={2} flexWrap="wrap">
-        <Text><Text color="cyanBright">spc</Text> play/pause</Text>
-        <Text><Text color="cyanBright">p/n</Text> ant/sig</Text>
-        <Text><Text color="cyanBright">h/l</Text> -/+10s</Text>
-        <Text><Text color="cyanBright">-/+</Text> vol</Text>
-        <Text><Text color="cyanBright">m</Text> mute</Text>
-        <Text><Text color="cyanBright">s</Text> shuffle</Text>
-        <Text><Text color="cyanBright">r</Text> repeat</Text>
-        <Text><Text color="cyanBright">o</Text> abrir</Text>
-        <Text><Text color="cyanBright">q</Text> salir</Text>
+      {/* Controles */}
+      <Box gap={2} flexWrap="wrap" width={w}>
+        <Hint keys="spc" label="play/pause" />
+        <Hint keys="p/n" label="ant/sig" />
+        <Hint keys="h/l" label="-/+10s" />
+        <Hint keys="-/+" label="vol" />
+        <Hint keys="m" label="mute" />
+        <Hint keys="s" label="shuffle" />
+        <Hint keys="r" label="repeat" />
+        <Hint keys="o" label="abrir" />
+        <Hint keys="q" label="salir" />
       </Box>
     </Box>
   );

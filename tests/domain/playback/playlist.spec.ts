@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { Playlist } from "./playlist.js";
-import { RepeatMode } from "./repeat-mode.js";
-import { AdvanceToTrack, StopPlayback } from "./advance.js";
-import { Random } from "../../ports/random.port.js";
+import { Playlist } from "../../../src/domain/playback/playlist.js";
+import { RepeatMode } from "../../../src/domain/playback/repeat-mode.js";
+import { AdvanceToTrack, StopPlayback } from "../../../src/domain/playback/advance.js";
+import { Random } from "../../../src/ports/random.port.js";
 
 const TRACKS = ["a.mp3", "b.mp3", "c.mp3"];
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { Lyrics } from "./lyrics.js";
-import { LyricLine } from "./lyric-line.js";
+import { Lyrics } from "../../../src/domain/lyrics/lyrics.js";
+import { LyricLine } from "../../../src/domain/lyrics/lyric-line.js";
 
 describe("Lyrics.currentIndexAt", () => {
   const lyrics = Lyrics.of([

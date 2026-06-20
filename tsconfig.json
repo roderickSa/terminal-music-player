@@ -4,10 +4,10 @@
     "module": "NodeNext",
     "moduleResolution": "node16",
     "strict": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "noEmit": true,
+    "rootDir": ".",
     "esModuleInterop": true,
     "jsx": "react-jsx"
   },
-  "include": ["src"]
+  "include": ["src", "tests", "vitest.config.ts"]
 }
